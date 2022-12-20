@@ -1,4 +1,4 @@
-import asyncio, os, threading, time, sys
+import asyncio, os, threading, time, sys, json
 from vallox_websocket_api import Client
 from paho.mqtt import client as mqtt_client
 
@@ -22,6 +22,10 @@ else:
 topicbase = 'vallox'
 client_id = 'valloxmqtt'
 
+if not 'METRICS' in os.environ:
+    chosenmetrics = []
+else:
+    chosenmetrics = os.environ['METRICS'].replace(" ", "").split(',')
 if not 'MQTT_USERNAME' in os.environ:
     username = ''
 else:
@@ -33,9 +37,15 @@ else:
     password = os.environ['MQTT_PASSWORD']
 
 async def run():
-    metrics = await client.fetch_metrics()
-    for key in metrics:
-        mqttclient.publish(topicbase+"/"+key, metrics[key])
+    metrics = await client.fetch_metrics(chosenmetrics)
+    filtereddict = {}
+    if len(chosenmetrics) == 0:
+        mqttclient.publish(topicbase+"/sensors", json.dumps(metrics))
+    else:
+        for key in metrics:
+            if key in chosenmetrics:
+                filtereddict[key] = metrics[key]
+        mqttclient.publish(topicbase+"/sensors", json.dumps(filtereddict))
 
 def connect_mqtt():
     def on_connect(client, userdata, flags, rc):
