@@ -1,4 +1,5 @@
 import asyncio, os, threading, time, sys, json
+from datetime import datetime, timezone
 from vallox_websocket_api import Client
 from paho.mqtt import client as mqtt_client
 
@@ -37,15 +38,12 @@ else:
     password = os.environ['MQTT_PASSWORD']
 
 async def run():
-    metrics = await client.fetch_metrics(chosenmetrics)
-    filtereddict = {}
     if len(chosenmetrics) == 0:
-        mqttclient.publish(topicbase+"/sensors", json.dumps(metrics))
+        metrics = await client.fetch_metrics()
     else:
-        for key in metrics:
-            if key in chosenmetrics:
-                filtereddict[key] = metrics[key]
-        mqttclient.publish(topicbase+"/sensors", json.dumps(filtereddict))
+        metrics = await client.fetch_metrics(chosenmetrics)
+    metrics["TIMESTAMP"] = str(datetime.utcnow().replace(tzinfo=timezone.utc))
+    mqttclient.publish(topicbase+"/sensors", json.dumps(metrics))
 
 def connect_mqtt():
     def on_connect(client, userdata, flags, rc):
@@ -60,12 +58,15 @@ def connect_mqtt():
     client.connect(broker, port)
     return client
 
+if not 'WAIT_TIME_SECONDS' in os.environ: 
+    wait_time = 30
+else:
+    wait_time = os.environ['WAIT_TIME_SECONDS']
 
-WAIT_TIME_SECONDS = 5
 mqttclient = connect_mqtt()
 ticker = threading.Event()
 try:
-    while not ticker.wait(WAIT_TIME_SECONDS):
+    while not ticker.wait(wait_time):
         asyncio.run(run())
 except KeyboardInterrupt:
 	pass
