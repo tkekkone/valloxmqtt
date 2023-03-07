@@ -38,10 +38,16 @@ else:
     password = os.environ['MQTT_PASSWORD']
 
 async def run():
-    if len(chosenmetrics) == 0:
-        metrics = await client.fetch_metrics()
-    else:
-        metrics = await client.fetch_metrics(chosenmetrics)
+    try:
+        if len(chosenmetrics) == 0:
+            metrics = await client.fetch_metrics()
+        else:
+            metrics = await client.fetch_metrics(chosenmetrics)
+
+    except ValloxWebsocketException:
+        print("Could not connect. Will try again next time")
+        return
+    
     metrics["TIMESTAMP"] = str(datetime.utcnow().replace(tzinfo=timezone.utc))
     mqttclient.publish(topicbase+"/sensors", json.dumps(metrics))
 
